@@ -1,4 +1,6 @@
 import Search from "./model/Search";
+import { elements, renderLoader, clearLoader } from "./view/base";
+import * as searchView from "./view/searchView";
 
 /**
  * Web app төлөв
@@ -12,21 +14,27 @@ const state = {};
 
 const controlSearch = async () => {
   //  1. Вэбээс хайлтын түлхүүр гийг гаргаж авна.
-  const query = "pizza";
+  const query = searchView.getInput();
 
   if (query) {
     //  2. Шинэээр хайлтын обектийг үүсгэж өгнө.
     state.search = new Search(query);
     //  3. Хайлт хийхэд зориулж дэлгэцийн UI бэлтгэнэ.
+    searchView.clearSearchQuery();
+    searchView.clearSearchResult();
+    renderLoader(elements.searchResultDiv);
 
     //   4. Хайлтыг гүйцэтгэнэ.
     await state.search.doSearch();
+
     //   5. Хайлтын үр дүнг дэлгэцэнд үзүүлнэ.
-    console.log(state.search.result);
+    clearLoader();
+    if (state.search.result === undefined) alert("Хайлт илэрцгүй....");
+    else searchView.renderRecipes(state.search.result);
   }
 };
 
-document.querySelector(".search").addEventListener("submit", (e) => {
+elements.searchForm.addEventListener("submit", (e) => {
   e.preventDefault();
   controlSearch();
 });
