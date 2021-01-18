@@ -2,7 +2,15 @@ import Search from "./model/Search";
 import { elements, renderLoader, clearLoader } from "./view/base";
 import * as searchView from "./view/searchView";
 import Recipe from "./model/Recipe";
-import { renderRecipe, clearRecipe } from "./view/recipeView";
+import List from "./model/List";
+import * as listView from "./view/listView";
+import Like from "./model/Like";
+import * as likesView from "./view/likesView";
+import {
+  renderRecipe,
+  clearRecipe,
+  highlightSelectedRecipe,
+} from "./view/recipeView";
 
 /**
  * Web app төлөв
@@ -63,23 +71,119 @@ const controlRecipe = async () => {
   // 1. URL-с ID-г салгаж авна
   const id = window.location.hash.replace("#", "");
 
-  // 2. Жорын моделийг үүсгэж өгнө
-  state.recipe = new Recipe(id);
+  // URL дээр ID Байгаа эсэхийг шалгана.
+  if (id) {
+    // 2. Жорын моделийг үүсгэж өгнө
+    state.recipe = new Recipe(id);
 
-  // 3. UI дэлгэцийг бэлтгэнэ
-  clearRecipe();
-  renderLoader(elements.recipeDiv);
+    // 3. UI дэлгэцийг бэлтгэнэ
+    clearRecipe();
+    renderLoader(elements.recipeDiv);
 
-  // 4. Жороо татаж авчирна
-  await state.recipe.getRecipe();
+    // 4. Жороо татаж авчирна
+    await state.recipe.getRecipe();
 
-  // 5. Жорыг гүйцэтгэх хугацаа болон орцыг тооцоолно
-  clearLoader();
-  state.recipe.calcTime();
-  state.recipe.calcHuniiToo();
+    // 5. Жорыг гүйцэтгэх хугацаа болон орцыг тооцоолно
+    clearLoader();
+    state.recipe.calcTime();
+    state.recipe.calcHuniiToo();
 
-  // 6. Жороо дэлгэцэнд гаргана
-  renderRecipe(state.recipe);
+    // 6. Жороо дэлгэцэнд гаргана
+    renderRecipe(state.recipe, state.likes.isLiked(id));
+  }
 };
-window.addEventListener("hashchange", controlRecipe);
-window.addEventListener("load", controlRecipe);
+
+// window.addEventListener("hashchange", controlRecipe);
+// window.addEventListener("load", controlRecipe);
+
+["hashchange", "load"].forEach((e) =>
+  window.addEventListener(e, controlRecipe)
+);
+
+window.addEventListener("load", (e) => {
+  // Шинээр лайк моделийг апп ачаалагдахад үүсгэнэ
+  if (!state.likes) state.likes = new Like();
+
+  // Лайк цэсийг гаргах эсэхийг хийдэх
+  likesView.toggleLikeMenu(state.likes.getNumberOfLikes());
+
+  // Лайкууд байвал тэдгээрийг цэсэнд нэмж харуулна
+  state.likes.likes.forEach((like) => likesView.renderLike(like));
+});
+
+/**
+ * Найрлагны котроллер
+ */
+
+const controlList = () => {
+  // Найрлагны моделийг үүсгэнэ
+  state.list = new List();
+
+  // Өмнө харагдаж байгаа найрлагыг дэлгэцнээс устгана
+  listView.clearItems();
+
+  // Уг моделруу одоо харагдаж байгаа жорны бүх найрлагыг авч хийнэ
+  state.recipe.ingredients.forEach((n) => {
+    // Тухайн найрлагыг моделруу хийнэ
+    const item = state.list.addItem(n);
+
+    // Тухайн найрлагыг дэлгэцэнд гаргана.
+    listView.renderItem(item);
+  });
+};
+
+/**
+ * Like контролер
+ */
+const controlLike = () => {
+  // 1. Like-ын моделыг үүсгэнэ
+  if (!state.likes) state.likes = new Like();
+
+  // 2. Одоо харагдаж байгаа жорын ID-ыг олж авах
+  const currentRecipeId = state.recipe.id;
+
+  // 3. Энэ жорыг лайкласан эсэхийг шалгах
+  if (state.likes.isLiked(currentRecipeId)) {
+    // 4. Лайкласан бол лайкыг нь болиулна
+    state.likes.deleteLike(currentRecipeId);
+    // Лайкын цэснээс устгана
+    likesView.deleteLike(currentRecipeId);
+    // Лайк товчны лайкласан байдлыг болиулна
+    likesView.toggleLikeBtn(true);
+  } else {
+    // 5. Лайклаагүй бол лайклана
+    const newLike = state.likes.addLike(
+      currentRecipeId,
+      state.recipe.title,
+      state.recipe.publisher,
+      state.recipe.image_url
+    );
+
+    // Лайк цэсэнд энэ лайкыг оруулах
+    likesView.renderLike(newLike);
+
+    // Лайкласан байдлыг лайкласан болгоно
+    likesView.toggleLikeBtn(true);
+  }
+
+  likesView.toggleLikeMenu(state.likes.getNumberOfLikes());
+};
+
+elements.recipeDiv.addEventListener("click", (e) => {
+  if (e.target.matches(".recipe__btn, .recipe__btn *")) {
+    controlList();
+  } else if (e.target.matches(".recipe__love, .recipe__love *")) {
+    controlLike();
+  }
+});
+
+elements.shoppingList.addEventListener("click", (e) => {
+  // Click хийсэн li элементийн data-itemid аттрибутыг шүүж гаргаж авах
+  const id = e.target.closest(".shopping__item").dataset.itemid;
+
+  // Олдсон ID-тэй орцыг моделоос устгана
+  state.list.deleteItem(id);
+
+  // Дэлгэцнээс ийм ID-тэй орцыг олж бас устгана
+  listView.deleteItem(id);
+});
